@@ -1,0 +1,89 @@
+name: "Continuous Integration"
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.0
+      - uses: jdx/mise-action@v2
+      - run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" ./main.go
+          # Run in background
+          ./main &
+
+          # Publish package
+          mkdir e2e-publish
+          uv init --name e2e-publish --package --lib --directory e2e-publish
+          pushd e2e-publish
+          uv build
+          uv publish --publish-url=http://localhost:8080 --token=ignored
+          popd
+
+          # Install package
+          mkdir e2e-install
+          uv init --name e2e-install --package --app --directory e2e-install
+          pushd e2e-install
+          uv venv
+          uv pip install --index-url=http://localhost:8080 e2e-publish
+          popd
+
+  ci:
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.8.1
+
+      - name: Generate release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Get Latest Release
+        id: latest_version
+        uses: abatilo/release-info-action@v1.3.1
+        with:
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@v3.6.1
+      #
+      # - name: Login to GitHub Container Registry
+      #   uses: docker/login-action@v3.3.0
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.repository_owner }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+      #
+      # - name: Prep docker tag
+      #   uses: docker/metadata-action@v5.5.1
+      #   id: metadata
+      #   with:
+      #     images: ghcr.io/${{ github.repository }}
+      #     tags: |
+      #       type=raw,value=${{ steps.latest_version.outputs.latest_tag }}
+      #
+      # - name: Set docker cache tags
+      #   uses: int128/docker-build-cache-config-action@v1.33.0
+      #   id: cache
+      #   with:
+      #     image: ghcr.io/${{ github.repository }}/cache
+      #
+      # - uses: docker/build-push-action@v6.7.0
+      #   id: build
+      #   with:
+      #     push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      #     tags: ${{ steps.metadata.outputs.tags }}
+      #     labels: ${{ steps.metadata.outputs.labels }}
+      #     platforms: linux/amd64,linux/arm64
+      #     cache-from: ${{ steps.cache.outputs.cache-from }}
+      #     cache-to: ${{ steps.cache.outputs.cache-to }}
