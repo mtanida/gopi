@@ -115,15 +115,17 @@ func main() {
 				defer src.Close()
 
 				// Check if the file already exists
-				if _, err := os.Stat(filepath.Join(dirName, file.Filename)); err == nil {
-					log.Printf("File already exists: %s\n", filepath.Join(dirName, file.Filename))
+				filePath := filepath.Join(dirPrefix, dirName, file.Filename)
+				log.Printf("Checking if file already exists: %s\n", filePath)
+				if _, err := os.Stat(filePath); err == nil {
+					log.Printf("File already exists: %s\n", filePath)
 					http.Error(w, "File already exists", http.StatusConflict)
 					return
 				}
 
 				// Create the destination file
 				dst, err := os.OpenFile(
-					filepath.Join(dirPrefix, dirName, file.Filename),
+					filePath,
 					os.O_WRONLY|os.O_CREATE|os.O_EXCL,
 					0444,
 				)
@@ -142,7 +144,7 @@ func main() {
 					log.Printf("Error copying file: written size (%d) does not match expected size (%d)\n", writtenSize, file.Size)
 					http.Error(w, "Error copying file", http.StatusInternalServerError)
 				} else {
-					log.Printf("File saved: %s\n", filepath.Join(dirPrefix, dirName, file.Filename))
+					log.Printf("File saved: %s\n", filePath)
 				}
 			}
 		}
