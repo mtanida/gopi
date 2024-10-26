@@ -1,0 +1,10 @@
+/.git/
+/.github/
+
+/.dockerignore
+/.gitignore
+/.mise.toml
+/.releaserc
+/Dockerfile
+/LICENSE
+/README.md
