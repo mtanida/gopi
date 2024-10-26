@@ -32,6 +32,10 @@ jobs:
           uv pip install --index-url=http://localhost:8080 e2e-publish
           popd
 
+          # Verify healthchecks
+          curl -s http://localhost:8080/readyz | grep -q "ok"
+          curl -s http://localhost:8080/livez | grep -q "ok"
+
   ci:
     needs: [e2e]
     runs-on: ubuntu-latest

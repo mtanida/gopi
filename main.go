@@ -19,6 +19,24 @@ func main() {
 	flag.Parse()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) {
+		// Try to read the directory to verify we have access
+		_, err := os.ReadDir(dirPrefix)
+		if err != nil {
+			log.Printf("Liveness check failed: %v\n", err)
+			http.Error(w, "Cannot read directory", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(dirPrefix, r.URL.Path)
 
