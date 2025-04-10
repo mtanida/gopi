@@ -60,19 +60,31 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body>")
-			fmt.Fprintf(w, "<h1>Links for %s</h1>", path)
-			fmt.Fprintf(w, "<ul>")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, "<!DOCTYPE html>\n")
+			fmt.Fprintf(w, "<html lang=\"en\">\n")
+			fmt.Fprintf(w, "<head>\n")
+			fmt.Fprintf(w, "  <meta charset=\"utf-8\">\n")
+			fmt.Fprintf(w, "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
+			fmt.Fprintf(w, "  <title>Directory listing for %s</title>\n", path)
+			fmt.Fprintf(w, "</head>\n")
+			fmt.Fprintf(w, "<body>\n")
+			fmt.Fprintf(w, "  <header>\n")
+			fmt.Fprintf(w, "    <h1>Links for %s</h1>\n", path)
+			fmt.Fprintf(w, "  </header>\n")
+			fmt.Fprintf(w, "  <main>\n")
+			fmt.Fprintf(w, "    <ul>\n")
 			for _, file := range files {
 				name := file.Name()
 				if file.IsDir() {
 					name += "/"
 				}
-				fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>", filepath.Join(name), name)
+				fmt.Fprintf(w, "      <li><a href=\"%s\">%s</a></li>\n", filepath.Join(name), name)
 			}
-			fmt.Fprintf(w, "</ul>")
-			fmt.Fprintf(w, "</body></html>")
+			fmt.Fprintf(w, "    </ul>\n")
+			fmt.Fprintf(w, "  </main>\n")
+			fmt.Fprintf(w, "</body>\n")
+			fmt.Fprintf(w, "</html>\n")
 		} else {
 			http.ServeFile(w, r, path)
 		}
