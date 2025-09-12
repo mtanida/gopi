@@ -124,7 +124,6 @@ func main() {
 					log.Printf("Error opening uploaded file: %v\n", err)
 					continue
 				}
-				defer src.Close()
 
 				// Check if the file already exists
 				filePath := filepath.Join(dirPrefix, dirName, file.Filename)
@@ -132,6 +131,7 @@ func main() {
 				if _, err := os.Stat(filePath); err == nil {
 					log.Printf("File already exists: %s\n", filePath)
 					http.Error(w, "File already exists", http.StatusConflict)
+					src.Close()
 					return
 				}
 
@@ -144,25 +144,70 @@ func main() {
 				if err != nil {
 					log.Printf("Error creating destination file: %v\n", err)
 					http.Error(w, "Unable to create file", http.StatusInternalServerError)
+					src.Close()
 					return
 				}
-				defer dst.Close()
 
 				// Copy the uploaded file to the destination file
 				writtenSize, err := io.Copy(dst, src)
-				if err != nil {
+				src.Close()
+				dst.Close()
+				if err != nil || writtenSize != file.Size {
 					log.Printf("Error copying file: %v\n", err)
-				} else if writtenSize != file.Size {
-					log.Printf("Error copying file: written size (%d) does not match expected size (%d)\n", writtenSize, file.Size)
+					// Delete the partially written file
+					removeErr := os.Remove(filePath)
+					if removeErr != nil {
+						log.Printf("Error removing partial file: %v\n", removeErr)
+					}
 					http.Error(w, "Error copying file", http.StatusInternalServerError)
-				} else {
-					log.Printf("File saved: %s\n", filePath)
+					return
 				}
+				log.Printf("File saved: %s\n", filePath)
 			}
 		}
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Form data received and printed"))
+	})
+
+	mux.HandleFunc("DELETE /", func(w http.ResponseWriter, r *http.Request) {
+		relPath := r.URL.Path
+		// Safety checks: block root, empty, or suspicious paths
+		if relPath == "/" || relPath == "" || relPath == "*" || relPath == "/*" {
+			http.Error(w, "Refusing to delete root or wildcard path", http.StatusForbidden)
+			return
+		}
+		// Prevent attempts to delete outside the prefix
+		path := filepath.Join(dirPrefix, relPath)
+		absPrefix, _ := filepath.Abs(dirPrefix)
+		absPath, _ := filepath.Abs(path)
+		if absPrefix == absPath {
+			http.Error(w, "Refusing to delete root directory", http.StatusForbidden)
+			return
+		}
+		if len(relPath) == 0 || relPath == "/" || relPath == "*" || relPath == "/*" {
+			http.Error(w, "Invalid delete path", http.StatusForbidden)
+			return
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			http.Error(w, "File or directory not found", http.StatusNotFound)
+			return
+		}
+		// Remove file or directory
+		var removeErr error
+		if info.IsDir() {
+			removeErr = os.RemoveAll(path)
+		} else {
+			removeErr = os.Remove(path)
+		}
+		if removeErr != nil {
+			log.Printf("Error deleting: %v\n", removeErr)
+			http.Error(w, "Unable to delete", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Deleted"))
 	})
 
 	srv := http.Server{
